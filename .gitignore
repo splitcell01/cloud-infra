@@ -1,0 +1,20 @@
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.*
+crash.log
+crash.*.log
+
+# Secrets / env / keys
+.env
+*.pem
+*.key
+*id_rsa*
+*id_ed25519*
+kubeconfig*
+**/.kube/
+
+# OS/editor
+.DS_Store
+.vscode/
