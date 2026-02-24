@@ -10,8 +10,9 @@ data "terraform_remote_state" "network" {
 }
 
 locals {
-  vpc_id            = data.terraform_remote_state.network.outputs.vpc_id
-  public_subnet_ids = data.terraform_remote_state.network.outputs.public_subnet_ids
+  vpc_id             = data.terraform_remote_state.network.outputs.vpc_id
+  public_subnet_ids  = data.terraform_remote_state.network.outputs.public_subnet_ids
+  private_subnet_ids = data.terraform_remote_state.network.outputs.private_subnet_ids
 }
 
 # Latest Ubuntu 24.04 LTS AMI (Canonical)
@@ -46,6 +47,39 @@ resource "aws_security_group" "k3s" {
 
   tags = {
     Name = "cole-k3s-sg"
+  }
+  # Allow nodes in this SG to talk to each other (cluster-only)
+  ingress {
+    description     = "kubernetes API (agents -> server)"
+    from_port       = 6443
+    to_port         = 6443
+    protocol        = "tcp"
+    self            = true
+  }
+
+  ingress {
+    description     = "kubelet (metrics/exec)"
+    from_port       = 10250
+    to_port         = 10250
+    protocol        = "tcp"
+    self            = true
+  }
+
+  ingress {
+    description     = "flannel VXLAN (pod network across nodes)"
+    from_port       = 8472
+    to_port         = 8472
+    protocol        = "udp"
+    self            = true
+  }
+
+  # Optional: NodePorts if you ever use them internally (common for quick tests)
+  ingress {
+    description     = "k8s NodePort range (internal only)"
+    from_port       = 30000
+    to_port         = 32767
+    protocol        = "tcp"
+    self            = true
   }
 }
 
