@@ -117,25 +117,62 @@ locals {
     set -euxo pipefail
 
     apt-get update
-    apt-get install -y curl
+    apt-get install -y curl git
 
     # Install k3s (server)
     curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
+
+    # Wait for k3s to be ready
+    until kubectl get nodes 2>/dev/null | grep -q " Ready"; do
+      echo "Waiting for k3s to be ready..."
+      sleep 5
+    done
 
     # Convenience: copy kubeconfig to ubuntu home
     mkdir -p /home/ubuntu/.kube
     cp /etc/rancher/k3s/k3s.yaml /home/ubuntu/.kube/config
     chown -R ubuntu:ubuntu /home/ubuntu/.kube
+
+    # Install ArgoCD
+    kubectl create namespace argocd
+    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+    # Wait for ArgoCD to be ready
+    kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+
+    # Bootstrap the app-of-apps (points ArgoCD at your GitOps repo)
+    kubectl apply -f - <<ARGOCD
+    apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: root
+      namespace: argocd
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/splitcell01/cloud-infra
+        targetRevision: HEAD
+        path: terraform/cloud-gitops/clusters/k3s-dev/apps
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+    ARGOCD
+
+    echo "Bootstrap complete"
   EOF
 }
 
 resource "aws_instance" "k3s" {
   ami                         = data.aws_ami.ubuntu_2404.id
-  instance_type               = "t3a.small"
-  subnet_id                   = local.public_subnet_ids[0]
+  instance_type               = "t3a.medium"
+  subnet_id                   = local.private_subnet_ids[0]
   vpc_security_group_ids      = [aws_security_group.k3s.id]
   iam_instance_profile        = aws_iam_instance_profile.ssm_profile.name
-  associate_public_ip_address = true
+  associate_public_ip_address = false
 
   user_data = local.user_data
 

@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: secure-messenger
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/splitcell01/cloud-infra
+    targetRevision: HEAD
+    path: terraform/cloud-gitops/clusters/k3s-dev/apps/whoami
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: secure-messenger
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
