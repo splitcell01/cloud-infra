@@ -1,0 +1,76 @@
+---
+# cloud-gitops/clusters/k3s-dev/apps/secure-messenger/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: secure-messenger
+---
+# cloud-gitops/clusters/k3s-dev/apps/secure-messenger/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secure-messenger
+  namespace: secure-messenger
+  labels:
+    app: secure-messenger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secure-messenger
+  template:
+    metadata:
+      labels:
+        app: secure-messenger
+    spec:
+      containers:
+        - name: server
+          image: ghcr.io/splitcell01/secure-messenger-server:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SM_ENV
+              value: "prod"
+            - name: SM_SERVER_ADDR
+              value: ":8080"
+          envFrom:
+            - secretRef:
+                name: secure-messenger-secrets
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+# NodePort service — ALB targets port 30080 on the EC2 instance directly.
+# This is simpler than the AWS Load Balancer Controller for a single-node cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: secure-messenger
+  namespace: secure-messenger
+  labels:
+    app: secure-messenger
+spec:
+  type: NodePort
+  selector:
+    app: secure-messenger
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080

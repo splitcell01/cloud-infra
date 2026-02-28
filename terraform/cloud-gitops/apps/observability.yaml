@@ -1,0 +1,24 @@
+# cloud-gitops/clusters/k3s-dev/apps/observability.yaml
+# ArgoCD Application for the observability stack
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/splitcell01/cloud-infra
+    targetRevision: HEAD
+    path: terraform/cloud-gitops/clusters/k3s-dev/apps/observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

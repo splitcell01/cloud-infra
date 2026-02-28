@@ -1,0 +1,95 @@
+---
+# Prometheus ConfigMap: scrape config + alert rules in one place.
+# The alert rule fires if secure-messenger /healthz stops returning 200 for 2 minutes.
+# To test it: kubectl scale deploy secure-messenger -n secure-messenger --replicas=0
+# Watch the alert go pending → firing in Prometheus UI, then Alertmanager receives it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval:     15s
+      evaluation_interval: 15s
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ["alertmanager:9093"]
+
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      - job_name: node-exporter
+        static_configs:
+          - targets: ["node-exporter:9100"]
+
+      # Blackbox probe: HTTP GET against secure-messenger /healthz via the NodePort
+      # This is the synthetic check that drives the alert below.
+      - job_name: blackbox-secure-messenger
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+              - http://secure-messenger.secure-messenger.svc.cluster.local:8080/healthz
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter.monitoring.svc.cluster.local:9115
+
+      - job_name: batchq
+        static_configs:
+          - targets: ["batchq.default.svc.cluster.local:8080"]
+
+  rules.yml: |
+    groups:
+      - name: secure-messenger
+        rules:
+          # Fires when the HTTP probe fails for 2 consecutive minutes.
+          # To trigger: kubectl scale deploy secure-messenger -n secure-messenger --replicas=0
+          - alert: SecureMessengerDown
+            expr: probe_success{job="blackbox-secure-messenger"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "secure-messenger healthcheck failing"
+              description: >
+                The /healthz probe for secure-messenger has been returning non-200
+                for more than 2 minutes. Check pod status:
+                kubectl get pods -n secure-messenger
+
+      - name: kubernetes
+        rules:
+          # Fires when any pod has been in a non-running state for 5 minutes.
+          - alert: PodNotRunning
+            expr: |
+              kube_pod_status_phase{phase!~"Running|Succeeded"} > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.pod }} is not running"
+              description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in {{ $labels.phase }} state for 5+ minutes."
+
+          # Node memory pressure
+          - alert: NodeMemoryPressure
+            expr: |
+              (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.10
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node memory below 10%"
+              description: "Available memory on {{ $labels.instance }} has dropped below 10%."
