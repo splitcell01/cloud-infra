@@ -39,7 +39,7 @@ data:
           module: [http_2xx]
         static_configs:
           - targets:
-              - http://secure-messenger.secure-messenger.svc.cluster.local:8080/healthz
+              - http://whoami.whoami.svc.cluster.local/
         relabel_configs:
           - source_labels: [__address__]
             target_label: __param_target
@@ -58,17 +58,16 @@ data:
         rules:
           # Fires when the HTTP probe fails for 2 consecutive minutes.
           # To trigger: kubectl scale deploy secure-messenger -n secure-messenger --replicas=0
-          - alert: SecureMessengerDown
-            expr: probe_success{job="blackbox-secure-messenger"} == 0
+          - alert: WhoamiDown
+            expr: probe_success{job="blackbox-whoami"} == 0
             for: 2m
             labels:
               severity: critical
             annotations:
-              summary: "secure-messenger healthcheck failing"
+              summary: "whoami healthcheck failing"
               description: >
-                The /healthz probe for secure-messenger has been returning non-200
-                for more than 2 minutes. Check pod status:
-                kubectl get pods -n secure-messenger
+                The probe for whoami has been returning non-200 for 2+ minutes.
+                kubectl get pods -n whoami
 
       - name: kubernetes
         rules:

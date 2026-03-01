@@ -1,25 +1,20 @@
-# cloud-gitops/clusters/k3s-dev/apps/secure-messenger.yaml
-# ArgoCD Application — tells ArgoCD where to find the manifests and where to deploy them.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: secure-messenger
+  name: whoami
   namespace: argocd
-  # Cascade delete: removing this Application removes all child resources
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
     repoURL: https://github.com/splitcell01/cloud-infra
     targetRevision: HEAD
-    path: terraform/cloud-gitops/clusters/k3s-dev/apps/secure-messenger
+    path: terraform/cloud-gitops/clusters/k3s-dev/apps/whoami
   destination:
     server: https://kubernetes.default.svc
-    namespace: secure-messenger
+    namespace: whoami
   syncPolicy:
     automated:
-      prune: true      # delete resources removed from Git
-      selfHeal: true   # revert manual kubectl changes
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
