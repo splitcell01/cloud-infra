@@ -50,7 +50,7 @@ resource "aws_security_group" "k3s" {
   }
   # Allow nodes in this SG to talk to each other (cluster-only)
   ingress {
-    description     = "kubernetes API (agents -> server)"
+    description = "kubernetes API (agents to server)"
     from_port       = 6443
     to_port         = 6443
     protocol        = "tcp"
