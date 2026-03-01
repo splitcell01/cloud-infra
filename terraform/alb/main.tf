@@ -6,22 +6,20 @@
 data "terraform_remote_state" "network" {
   backend = "s3"
   config = {
-    bucket         = "cole-tf-state-us-east-1"
-    key            = "network/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-locks"
-    encrypt        = true
+    bucket  = "cole-tf-state-us-east-1"
+    key     = "network/terraform.tfstate"
+    region  = "us-east-1"
+    encrypt = true
   }
 }
 
 data "terraform_remote_state" "compute" {
   backend = "s3"
   config = {
-    bucket         = "cole-tf-state-us-east-1"
-    key            = "compute-k3s/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-locks"
-    encrypt        = true
+    bucket  = "cole-tf-state-us-east-1"
+    key     = "compute-k3s/terraform.tfstate"
+    region  = "us-east-1"
+    encrypt = true
   }
 }
 
@@ -29,6 +27,7 @@ locals {
   vpc_id            = data.terraform_remote_state.network.outputs.vpc_id
   public_subnet_ids = data.terraform_remote_state.network.outputs.public_subnet_ids
   k3s_instance_id   = data.terraform_remote_state.compute.outputs.instance_id
+  k3s_sg_id         = data.terraform_remote_state.compute.outputs.k3s_sg_id
 }
 
 # ── Security group: ALB (public internet → ALB) ──────────────────────────────
@@ -67,9 +66,9 @@ resource "aws_security_group" "alb" {
 # Allow ALB to reach the k3s NodePort (30080) on the EC2 instance.
 # We add a rule to the existing k3s SG rather than hardcoding the SG ID here.
 resource "aws_security_group_rule" "k3s_nodeport_from_alb" {
-  description              = "ALB → k3s NodePort 30080"
+  description              = "ALB to k3s NodePort 30080"
   type                     = "ingress"
-  security_group_id        = var.k3s_sg_id
+  security_group_id        = local.k3s_sg_id
   from_port                = 30080
   to_port                  = 30080
   protocol                 = "tcp"
@@ -92,7 +91,7 @@ resource "aws_lb" "main" {
 
 resource "aws_lb_target_group" "secure_messenger" {
   name        = "cole-sm-tg"
-  port        = 30080        # k3s NodePort for secure-messenger
+  port        = 30080 # k3s NodePort for secure-messenger
   protocol    = "HTTP"
   vpc_id      = local.vpc_id
   target_type = "instance"

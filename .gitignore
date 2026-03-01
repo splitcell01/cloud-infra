@@ -5,6 +5,7 @@
 **/terraform.tfstate.*
 crash.log
 crash.*.log
+**/.terraform.lock.hcl
 
 # Secrets / env / keys
 .env
