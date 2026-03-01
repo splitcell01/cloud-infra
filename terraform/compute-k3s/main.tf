@@ -119,7 +119,11 @@ locals {
     set -euxo pipefail
 
     apt-get update
-    apt-get install -y curl git awscli
+    apt-get install -y curl git unzip
+
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+    unzip /tmp/awscliv2.zip -d /tmp
+    /tmp/aws/install
 
     curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
 
@@ -139,7 +143,7 @@ locals {
     aws ssm put-parameter --name "${local.k3s_param_url}"   --type "String"       --value "$SERVER_URL" --overwrite --region us-east-1
 
     /usr/local/bin/kubectl create namespace argocd || true
-    /usr/local/bin/kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+    /usr/local/bin/kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
     /usr/local/bin/kubectl wait --for=condition=available --timeout=600s deployment/argocd-server -n argocd
 
     /usr/local/bin/kubectl apply -f - <<ARGOCD
@@ -169,7 +173,11 @@ locals {
     set -euxo pipefail
 
     apt-get update
-    apt-get install -y curl awscli
+    apt-get install -y curl unzip
+
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+    unzip /tmp/awscliv2.zip -d /tmp
+    /tmp/aws/install
 
     for i in $(seq 1 60); do
       SERVER_URL="$(aws ssm get-parameter --name "${local.k3s_param_url}" --query "Parameter.Value" --output text --region us-east-1 2>/dev/null || true)"
@@ -221,4 +229,25 @@ resource "aws_instance" "k3s_agent" {
   tags = { Name = "cole-k3s-agent-${count.index + 1}" }
 
   depends_on = [aws_instance.k3s_server]
+}
+
+data "aws_iam_policy_document" "k3s_params" {
+  statement {
+    actions = [
+      "ssm:PutParameter",
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:DeleteParameter",
+      "ssm:DescribeParameters"
+    ]
+    resources = [
+      "arn:aws:ssm:us-east-1:*:parameter/cole/k3s/*"
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "k3s_params" {
+  name   = "cole-k3s-params"
+  role   = aws_iam_role.ssm_role.id
+  policy = data.aws_iam_policy_document.k3s_params.json
 }

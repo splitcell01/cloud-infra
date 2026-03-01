@@ -114,24 +114,3 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
 }
-
-data "aws_iam_policy_document" "k3s_params" {
-  statement {
-    actions = [
-      "ssm:PutParameter",
-      "ssm:GetParameter",
-      "ssm:GetParameters",
-      "ssm:DeleteParameter",
-      "ssm:DescribeParameters"
-    ]
-    resources = [
-      "arn:aws:ssm:us-east-1:*:parameter/cole/k3s/*"
-    ]
-  }
-}
-
-resource "aws_iam_role_policy" "k3s_params" {
-  name   = "cole-k3s-params"
-  role   = aws_iam_role.ssm_role.id
-  policy = data.aws_iam_policy_document.k3s_params.json
-}
